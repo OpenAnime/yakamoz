@@ -9,7 +9,7 @@ Current HLS Livestreaming implementations such as hls.js does not let you to app
 # Usage
 
 ```js
-import Yakamoz from "../dist/yakamoz.js";
+import Yakamoz from "yakamoz";
 import { Parser } from "m3u8-parser";
 import muxjs from "mux.js";
 
