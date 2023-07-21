@@ -7,6 +7,9 @@ dependencies:
   mux.js:
     specifier: ^6.3.0
     version: 6.3.0
+  yakamoz:
+    specifier: 1.0.1
+    version: 1.0.1
 
 devDependencies:
   vite:
@@ -380,3 +383,7 @@ packages:
     optionalDependencies:
       fsevents: 2.3.2
     dev: true
+
+  /yakamoz@1.0.1:
+    resolution: {integrity: sha512-F/NRhRYpzsXp+DB52ZVfRzX37bpSuMCXAQjG0k5f85FMNWyDHABfTc7JiSXCRrRea5oiHhzdLh5SXKo0+ZzW3g==}
+    dev: false
