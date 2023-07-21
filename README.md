@@ -1,10 +1,10 @@
 # yakamoz
 
-HLS Livestreaming framework for complex use cases.
+HLS framework for complex use cases.
 
 ## Why?
 
-Current HLS Livestreaming implementations such as hls.js does not let you to append buffers yourself. Let's say you have mp2t video buffers stored in indexedDB which you want to play. You won't be able to do that because you can't append video buffers by yourself. hls.js will automaticly try to fetch proper segments and append one by one.
+Instead of current HLS implementations, Yakamoz provides a simple API to append buffers by yourself while handles unnecessary buffers and cleans them automaticly.
 
 ## Usage
 
@@ -34,7 +34,7 @@ import muxjs from "mux.js";
   const request = (url) =>
     fetch(url).then((response) => response.arrayBuffer());
 
-  //Create an fMp4 transmuxer to convert mp2t buffers to fragmented mp4 buffers
+  //Transmuxer to convert mp2t buffers to fragmented mp4 buffers
   let transmuxer = new muxjs.mp4.Transmuxer();
   async function transmux(chunk, giveAsSourceBuffer) {
     return new Promise((resolve) => {
