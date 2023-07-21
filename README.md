@@ -1,12 +1,12 @@
-## yakamoz
+# yakamoz
 
 HLS Livestreaming framework for complex use cases.
 
-# Why?
+## Why?
 
 Current HLS Livestreaming implementations such as hls.js does not let you to append buffers yourself. Let's say you have mp2t video buffers stored in indexedDB which you want to play. You won't be able to do that because you can't append video buffers by yourself. hls.js will automaticly try to fetch proper segments and append one by one.
 
-# Usage
+## Usage
 
 ```js
 import Yakamoz from "yakamoz";
