@@ -57,7 +57,10 @@ export default class Yakamoz extends EventTarget {
 				const buf = bufferDeletionQueue[i];
 				if (buf.time <= video.currentTime) {
 					buf.f();
-					bufferDeletionQueue.splice(i--, 1);
+					
+					bufferDeletionQueue = bufferDeletionQueue.filter(
+            					(x) => x.time != buf.time
+          				);
 				}
 			}
 
