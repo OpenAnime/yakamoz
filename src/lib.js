@@ -1,190 +1,169 @@
 export default class Yakamoz extends EventTarget {
-  parsedSegments;
-  duration = 0;
-  arrayOfBuffers = [];
-  segmentLength = 0;
-  currentSegment = 0;
-  video;
-  sourceBuffer;
-  mime;
+    parsedSegments;
+    duration = 0;
+    arrayOfBuffers = [];
+    segmentLength = 0;
+    currentSegment = 0;
+    video;
+    sourceBuffer;
+    mime;
 
-  #dispatch(eventName, detail) {
-    const event = new CustomEvent(eventName, { detail });
-    this.dispatchEvent(event);
-  }
-
-  #calculateTimestamp(segmentIndex) {
-    let timestamp = 0;
-    for (let index = 0; index < segmentIndex + 1; index++) {
-      const element = this.parsedSegments[index];
-      timestamp += element.duration;
+    #dispatch(eventName, detail) {
+        this.dispatchEvent(new CustomEvent(eventName, { detail }));
     }
-    return timestamp;
-  }
 
-  #getSegmentUsingTimestamp(timestamp) {
-    let calculatedDuration = 0;
-    let segment;
-    for (let index = 0; index < this.parsedSegments.length; index++) {
-      const element = this.parsedSegments[index];
-      calculatedDuration += element.duration;
-      if (calculatedDuration >= timestamp) {
-        segment = element;
-        break;
-      }
+    #calculateTimestamp(segmentIndex) {
+        return this.parsedSegments
+            .slice(0, segmentIndex + 1)
+            .reduce((acc, curr) => acc + curr.duration, 0);
     }
-    return segment;
-  }
 
-  #ok() {
-    let sourceBuffer;
-    let mediaSource = new MediaSource();
-
-    let url = URL.createObjectURL(mediaSource);
-    const video = this.video;
-
-    video.src = url;
-
-    mediaSource.addEventListener("sourceopen", () => {
-      sourceBuffer = mediaSource.addSourceBuffer(this.mime);
-      mediaSource.duration = this.duration;
-      sourceBuffer.timestampOffset = 0;
-
-      sourceBuffer.addEventListener("updateend", appendToSourceBuffer);
-      appendToSourceBuffer();
-    });
-
-    let isLoadingNextBuffer = false;
-    let bufferDeletionQueue = [];
-
-    const checkBufferedRanges = async () => {
-      if (sourceBuffer.buffered.length > 0) {
-        let currentTime = video.currentTime;
-
-        const gereksizBufferlar = bufferDeletionQueue.filter(
-          (x) => x.time <= video.currentTime
+    #getSegmentUsingTimestamp(timestamp) {
+        let calculatedDuration = 0;
+        return (
+            this.parsedSegments.find(
+                (segment) => (calculatedDuration += segment.duration) >= timestamp,
+            ) || null
         );
-        gereksizBufferlar.forEach((buf) => {
-          buf.f();
-          bufferDeletionQueue = bufferDeletionQueue.filter(
-            (x) => x.time != buf.time
-          );
+    }
+
+    #ok() {
+        let sourceBuffer,
+            mediaSource = new MediaSource();
+
+        const { video } = this;
+
+        video.src = URL.createObjectURL(mediaSource);
+
+        mediaSource.addEventListener('sourceopen', () => {
+            sourceBuffer = mediaSource.addSourceBuffer(this.mime);
+            mediaSource.duration = this.duration;
+            sourceBuffer.timestampOffset = 0;
+
+            sourceBuffer.addEventListener('updateend', appendToSourceBuffer);
+            appendToSourceBuffer();
         });
 
-        const nextSegmentStart =
-          this.#calculateTimestamp(this.currentSegment) -
-          this.parsedSegments[this.currentSegment].duration;
+        let isLoadingNextBuffer = false,
+            bufferDeletionQueue = [];
 
-        if (
-          currentTime >= nextSegmentStart - 2 &&
-          Math.abs(nextSegmentStart - currentTime) <= 2
-        ) {
-          if (
-            !isLoadingNextBuffer &&
-            this.currentSegment < this.segmentLength
-          ) {
-            isLoadingNextBuffer = true;
+        const checkBufferedRanges = async () => {
+            if (sourceBuffer.buffered.length <= 0) return;
 
-            this.#dispatch("NEW_SEGMENT", {
-              targetSegment: this.currentSegment,
-              append: (buffer) => {
-                this.arrayOfBuffers.push({ buffer });
-                appendToSourceBuffer();
-              },
-            });
-          }
-        } else {
-          isLoadingNextBuffer = false;
-        }
-      }
-    };
+            let currentTime = video.currentTime;
 
-    const seeking = async () => {
-      if (!isLoadingNextBuffer) {
-        const start = Math.floor(video.buffered.start(0));
-        const end = Math.floor(video.buffered.end(0));
-        if (!(video.currentTime >= start && video.currentTime <= end)) {
-          const calc = this.#getSegmentUsingTimestamp(video.currentTime);
-          const i = this.parsedSegments.indexOf(calc);
+            for (let i = 0; i < bufferDeletionQueue.length; i++) {
+                const buf = bufferDeletionQueue[i];
+                if (buf.time <= video.currentTime) {
+                    buf.f();
 
-          this.#dispatch("NEW_SEGMENT", {
-            targetSegment: i,
-            append: (buffer) => {
-              this.arrayOfBuffers.push({ buffer });
-              if (mediaSource.readyState == "open") {
-                sourceBuffer.abort();
-              }
-              appendToSourceBuffer();
-            },
-          });
-        }
-      }
-    };
-
-    const appendToSourceBuffer = () => {
-      if (
-        mediaSource.readyState === "open" &&
-        sourceBuffer &&
-        sourceBuffer.updating === false
-      ) {
-        const s = this.arrayOfBuffers.shift();
-        if (s) {
-          sourceBuffer.appendBuffer(s.buffer);
-          const getCurrent = this.#getSegmentUsingTimestamp(
-            video.currentTime + 2
-          );
-          const i = this.parsedSegments.indexOf(getCurrent);
-          this.currentSegment = i + 1;
-
-          if (video.buffered.length) {
-            const t = video.currentTime + 3;
-            bufferDeletionQueue.push({
-              time: t,
-              f: () => {
-                const calc = this.#calculateTimestamp(i - 1);
-                const diff = video.currentTime - calc;
-                if (diff <= 2) {
-                  if (!sourceBuffer.updating) {
-                    sourceBuffer.remove(0, calc);
-                  } else {
-                    sourceBuffer.addEventListener(
-                      "updateend",
-                      function onSourceBufferUpdateEnd() {
-                        sourceBuffer.remove(0, calc);
-                        sourceBuffer.removeEventListener(
-                          "updateend",
-                          onSourceBufferUpdateEnd
-                        );
-                      }
-                    );
-                  }
+                    bufferDeletionQueue = bufferDeletionQueue.filter((x) => x.time != buf.time);
                 }
-              },
+            }
+
+            const nextSegmentStart =
+                this.#calculateTimestamp(this?.currentSegment) -
+                this.parsedSegments[this?.currentSegment]?.duration;
+
+            // at the end of the video, nextSegmentStart will be NaN. isLoadingNextBuffer will be false, and the video will not seek to the next segment.
+
+            if (
+                currentTime >= nextSegmentStart - 2 &&
+                Math.abs(nextSegmentStart - currentTime) <= 2
+            ) {
+                if (!(!isLoadingNextBuffer && this.currentSegment < this.segmentLength)) return;
+                isLoadingNextBuffer = true;
+
+                this.#dispatch('NEW_SEGMENT', {
+                    targetSegment: this.currentSegment,
+                    append: (buffer) => {
+                        this.arrayOfBuffers.push({ buffer });
+                        appendToSourceBuffer();
+                    },
+                });
+            } else {
+                isLoadingNextBuffer = false;
+            }
+        };
+
+        const seeking = async () => {
+            if (
+                isLoadingNextBuffer ||
+                (video.currentTime >= Math.floor(video.buffered.start(0)) &&
+                    video.currentTime <= Math.floor(video.buffered.end(0)))
+            )
+                return;
+
+            this.#dispatch('NEW_SEGMENT', {
+                targetSegment: this.parsedSegments.indexOf(
+                    this.#getSegmentUsingTimestamp(video.currentTime),
+                ),
+                append: (buffer) => {
+                    this.arrayOfBuffers.push({ buffer });
+                    if (mediaSource.readyState == 'open') {
+                        sourceBuffer.abort();
+                    }
+                    appendToSourceBuffer();
+                },
             });
-          }
-        }
-      }
-    };
+        };
 
-    video.addEventListener("timeupdate", checkBufferedRanges);
-    video.addEventListener("seeking", seeking);
-  }
+        const appendToSourceBuffer = () => {
+            let s;
 
-  init({ video, segments, mime }) {
-    this.parsedSegments = segments;
-    this.segmentLength = segments.length;
-    this.video = video;
-    this.mime = mime;
+            if (
+                !(
+                    mediaSource.readyState === 'open' &&
+                    sourceBuffer &&
+                    sourceBuffer.updating === false
+                ) ||
+                !(s = this.arrayOfBuffers.shift())
+            )
+                return;
 
-    segments.forEach((segment) => {
-      this.duration += segment.duration;
-    });
+            sourceBuffer.appendBuffer(s.buffer);
 
-    this.#dispatch("NEED_SOURCEBUFFER", {
-      append: (buffer) => {
-        this.arrayOfBuffers.push({ buffer });
-        this.#ok();
-      },
-    });
-  }
+            const getCurrent = this.#getSegmentUsingTimestamp(video.currentTime + 2);
+            const i = this.parsedSegments.indexOf(getCurrent);
+            this.currentSegment = i + 1;
+
+            if (!video.buffered.length) return;
+
+            bufferDeletionQueue.push({
+                time: video.currentTime + 3,
+                f: () => {
+                    const calc = this.#calculateTimestamp(i - 1);
+                    if (video.currentTime - calc > 2) return;
+
+                    if (!sourceBuffer.updating) {
+                        sourceBuffer.remove(0, calc);
+                    } else {
+                        sourceBuffer.addEventListener('updateend', function () {
+                            sourceBuffer.remove(0, calc);
+                            sourceBuffer.removeEventListener('updateend', this);
+                        });
+                    }
+                },
+            });
+        };
+
+        video.addEventListener('timeupdate', checkBufferedRanges);
+        video.addEventListener('seeking', seeking);
+    }
+
+    init({ video, segments, mime }) {
+        this.parsedSegments = segments;
+        this.segmentLength = segments.length;
+        this.video = video;
+        this.mime = mime;
+
+        this.duration += segments.reduce((acc, curr) => acc + curr.duration, 0);
+
+        this.#dispatch('NEED_SOURCEBUFFER', {
+            append: (buffer) => {
+                this.arrayOfBuffers.push({ buffer });
+                this.#ok();
+            },
+        });
+    }
 }
